@@ -2,16 +2,14 @@
 #include <iostream>
 #include <memory>
 #include <string>
-#include <sstream>
-#include <vector>
-#include <algorithm>
-#include <cctype>
 
 using boost::asio::ip::tcp;
 
 class Session : public std::enable_shared_from_this<Session> {
 public:
-    Session(tcp::socket socket) : socket_(std::move(socket)) {}
+    Session(tcp::socket socket)
+        : socket_(std::move(socket)), timer_(socket_.get_executor()) {
+    }
 
     void start() {
         do_read();
@@ -36,37 +34,45 @@ private:
     }
 
     void handle_request(const std::string& request) {
-        // Parse numbers
+        if (request.rfind("timer", 0) != 0) {
+            do_write("Invalid command. Use: timer N\n", true);
+            return;
+        }
         std::istringstream iss(request);
-        std::vector<int> nums;
-        int num;
-        while (iss >> num) nums.push_back(num);
-        if (nums.empty()) {
-            do_write("Error: no numbers\n");
+        std::string cmd;
+        int seconds;
+        iss >> cmd >> seconds;
+        if (seconds <= 0) {
+            do_write("Invalid seconds\n", true);
             return;
         }
 
-        // Post computation to avoid blocking the io_context
+       
+        std::string ack = "Ready in " + std::to_string(seconds) + " sec\n";
+        do_write(ack, false);
+
+       
         auto self = shared_from_this();
-        boost::asio::post(socket_.get_executor(), [this, self, nums]() {
-            int max_val = *std::max_element(nums.begin(), nums.end());
-            std::string response = "Max: " + std::to_string(max_val) + "\n";
-            do_write(response);
+        timer_.expires_after(boost::asio::chrono::seconds(seconds));
+        timer_.async_wait([this, self](boost::system::error_code ec) {
+            if (!ec) {
+                do_write("Done!\n", true);
+            }
             });
     }
 
-    void do_write(const std::string& response) {
+    void do_write(const std::string& response, bool close_after) {
         auto self(shared_from_this());
         boost::asio::async_write(socket_, boost::asio::buffer(response),
-            [this, self](boost::system::error_code ec, std::size_t /*length*/) {
-                if (!ec) {
-                    // Close connection after response
+            [this, self, close_after](boost::system::error_code ec, std::size_t /*length*/) {
+                if (!ec && close_after) {
                     socket_.close();
                 }
             });
     }
 
     tcp::socket socket_;
+    boost::asio::steady_timer timer_;
     boost::asio::streambuf buffer_;
 };
 
@@ -90,10 +96,13 @@ private:
 };
 
 int main() {
+
+    setlocale(LC_ALL, "Russian");
+
     try {
         boost::asio::io_context io;
-        Server server(io, 12342);
-        std::cout << "Server 2 (async max) listening on port 12342\n";
+        Server server(io, 12343);
+        std::cout << "Server 3 (timer) listening on port 12343\n";
         io.run();
     }
     catch (std::exception& e) {
