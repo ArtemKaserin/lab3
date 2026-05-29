@@ -1,0 +1,8 @@
+<Solution>
+  <Configurations>
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Project Path="клиент/клиент.vcxproj" Id="25c14cf8-b3d8-48b4-a6a0-9cb5b496a1aa" />
+  <Project Path="лаб3_задание1/лаб3_задание1.vcxproj" Id="1a7a0d62-fe1f-4c05-955b-0aadec4e0cf7" />
+</Solution>
